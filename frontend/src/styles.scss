@@ -1,1 +1,43 @@
-/* You can add global styles to this file, and also import other style files */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap');
+
+:root {
+	color-scheme: light;
+	--paper: #f5f7f3;
+	--surface: #ffffff;
+	--ink: #20352c;
+	--muted: #748179;
+	--line: #e2e8e2;
+	--line-strong: #cfd9d0;
+	--green: #17684f;
+	--green-soft: #e5f1e9;
+	--coral: #c8664c;
+	--display-font: 'Newsreader', Georgia, serif;
+	font-family: 'DM Sans', 'Segoe UI', sans-serif;
+	color: var(--ink);
+	background: var(--paper);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	min-width: 320px;
+	min-height: 100vh;
+	margin: 0;
+}
+
+button,
+input {
+	font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible {
+	outline: 3px solid rgb(18 97 78 / 38%);
+	outline-offset: 3px;
+}

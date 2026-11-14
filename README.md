@@ -19,13 +19,19 @@ Monorepo para una aplicación de gestión de pedidos. Cada servicio conserva su 
 
 Desde la raíz del repositorio:
 
+Inicia la API en una terminal:
+
 ```powershell
-dotnet run --project backend/OrderFlow.Api
-dotnet run --project backend/OrderFlow.InventoryWorker
+dotnet run --project backend/OrderFlow.Api --no-launch-profile --urls http://localhost:8080
+```
+
+Inicia Angular en otra terminal:
+
+```powershell
 cd frontend; npm install; npm start
 ```
 
-La API publica el endpoint de salud en `/health`. La URL local exacta de la API se muestra al iniciar `dotnet run`.
+Angular queda disponible en `http://localhost:4200` y reenvía `/api` a la API local. El endpoint de salud es `/health`. Los pedidos se almacenan en memoria y se pierden al reiniciar la API.
 
 ## Ejecutar con Docker Compose
 
@@ -33,4 +39,4 @@ La API publica el endpoint de salud en `/health`. La URL local exacta de la API 
 docker compose up --build
 ```
 
-Angular queda disponible en `http://localhost:4200` y la API en `http://localhost:8080`. El worker se ejecuta en segundo plano.
+Angular queda disponible en `http://localhost:4200` y el endpoint de salud de la API en `http://localhost:8080/health`. El worker se ejecuta en segundo plano.
