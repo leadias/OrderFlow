@@ -1,14 +1,30 @@
-using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using OrderFlow.Api.Data;
+using OrderFlow.Api.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-builder.Services.AddSingleton<OrderStore>();
+builder.Services.AddDbContext<OrderDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("OrdersDb")));
 
 var app = builder.Build();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<OrderDbContext>();
+    if (dbContext.Database.IsNpgsql())
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+    else
+    {
+        await dbContext.Database.EnsureCreatedAsync();
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -17,11 +33,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+app.MapGet("/health", async (OrderDbContext dbContext, CancellationToken cancellationToken) =>
+    await dbContext.Database.CanConnectAsync(cancellationToken)
+        ? Results.Ok(new { status = "healthy" })
+        : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Database unavailable"));
 
 var orders = app.MapGroup("/api/orders");
 
-orders.MapPost("", (CreateOrderRequest request, OrderStore store) =>
+orders.MapPost("", async (CreateOrderRequest request, OrderDbContext dbContext, CancellationToken cancellationToken) =>
 {
     var errors = Validate(request);
     if (errors.Count > 0)
@@ -29,18 +48,48 @@ orders.MapPost("", (CreateOrderRequest request, OrderStore store) =>
         return Results.ValidationProblem(errors);
     }
 
-    var order = store.Create(request);
-    return Results.Created($"/api/orders/{order.Id}", order);
+    var order = new OrderEntity
+    {
+        Id = Guid.NewGuid(),
+        CustomerId = request.CustomerId!.Trim(),
+        Status = OrderStatus.Pending,
+        CreatedAtUtc = DateTimeOffset.UtcNow,
+        Items = request.Items!.Select((item, index) => new OrderItemEntity
+        {
+            LineNumber = index + 1,
+            ProductId = item.ProductId!.Trim(),
+            Quantity = item.Quantity
+        }).ToList()
+    };
+
+    dbContext.Orders.Add(order);
+    await dbContext.SaveChangesAsync(cancellationToken);
+
+    var response = ToResponse(order);
+    return Results.Created($"/api/orders/{order.Id}", response);
 })
 .WithName("CreateOrder");
 
-orders.MapGet("", (OrderStore store) => Results.Ok(store.GetAll()))
+orders.MapGet("", async (OrderDbContext dbContext, CancellationToken cancellationToken) =>
+{
+    var orders = await dbContext.Orders
+        .AsNoTracking()
+        .Include(order => order.Items)
+        .OrderByDescending(order => order.CreatedAtUtc)
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(orders.Select(ToResponse));
+})
     .WithName("GetOrders");
 
-orders.MapGet("/{id:guid}", (Guid id, OrderStore store) =>
+orders.MapGet("/{id:guid}", async (Guid id, OrderDbContext dbContext, CancellationToken cancellationToken) =>
 {
-    var order = store.Get(id);
-    return order is null ? Results.NotFound() : Results.Ok(order);
+    var order = await dbContext.Orders
+        .AsNoTracking()
+        .Include(candidate => candidate.Items)
+        .SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
+
+    return order is null ? Results.NotFound() : Results.Ok(ToResponse(order));
 })
 .WithName("GetOrder");
 
@@ -78,43 +127,14 @@ static Dictionary<string, string[]> Validate(CreateOrderRequest request)
     return errors;
 }
 
-sealed record CreateOrderRequest(string CustomerId, List<CreateOrderItemRequest>? Items);
+static OrderResponse ToResponse(OrderEntity order) =>
+    new(
+        order.Id,
+        order.CustomerId,
+        order.Items.OrderBy(item => item.LineNumber)
+            .Select(item => new OrderItemResponse(item.ProductId, item.Quantity))
+            .ToArray(),
+        order.Status,
+        order.CreatedAtUtc);
 
-sealed record CreateOrderItemRequest(string ProductId, int Quantity);
-
-sealed record OrderItem(string ProductId, int Quantity);
-
-sealed record Order(
-    Guid Id,
-    string CustomerId,
-    IReadOnlyList<OrderItem> Items,
-    OrderStatus Status,
-    DateTimeOffset CreatedAtUtc);
-
-enum OrderStatus
-{
-    Pending
-}
-
-sealed class OrderStore
-{
-    private readonly ConcurrentDictionary<Guid, Order> orders = new();
-
-    public Order Create(CreateOrderRequest request)
-    {
-        var order = new Order(
-            Guid.NewGuid(),
-            request.CustomerId.Trim(),
-            request.Items!.Select(item => new OrderItem(item.ProductId.Trim(), item.Quantity)).ToArray(),
-            OrderStatus.Pending,
-            DateTimeOffset.UtcNow);
-
-        orders[order.Id] = order;
-        return order;
-    }
-
-    public IReadOnlyCollection<Order> GetAll() =>
-        orders.Values.OrderByDescending(order => order.CreatedAtUtc).ToArray();
-
-    public Order? Get(Guid id) => orders.GetValueOrDefault(id);
-}
+public partial class Program;

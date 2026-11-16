@@ -1,10 +1,32 @@
 services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: orderflow
+      POSTGRES_USER: orderflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orderflow_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orderflow -d orderflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   orders-api:
     build:
       context: ./backend
       dockerfile: OrderFlow.Api/Dockerfile
+    environment:
+      ASPNETCORE_HTTP_PORTS: 8080
+      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:-orderflow_dev_password}
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   inventory-worker:
     build:
@@ -18,3 +40,6 @@ services:
       - "4200:80"
     depends_on:
       - orders-api
+
+volumes:
+  postgres_data:
