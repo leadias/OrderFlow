@@ -3,6 +3,24 @@
     <span class="brand-mark" aria-hidden="true">OF</span>
     <span>OrderFlow</span>
   </a>
+  <nav class="primary-nav" aria-label="Secciones">
+    <button
+      type="button"
+      [class.primary-nav__item--active]="activeView() === 'orders'"
+      [attr.aria-pressed]="activeView() === 'orders'"
+      (click)="showView('orders')"
+    >
+      Pedidos
+    </button>
+    <button
+      type="button"
+      [class.primary-nav__item--active]="activeView() === 'inventory'"
+      [attr.aria-pressed]="activeView() === 'inventory'"
+      (click)="showView('inventory')"
+    >
+      Inventario
+    </button>
+  </nav>
   <div class="connection" [class.connection--offline]="error()" role="status">
     <span class="connection-dot" aria-hidden="true"></span>
     {{ error() ? 'API sin conexión' : 'Operación de pedidos' }}
@@ -10,179 +28,320 @@
 </header>
 
 <main class="workspace">
-  <section class="page-heading" aria-labelledby="page-title">
-    <div>
-      <p class="eyebrow">ÓRDENES / CONTROL</p>
-      <h1 id="page-title">Pedidos</h1>
-      <p class="page-description">Registra pedidos y revisa su estado en un solo lugar.</p>
-    </div>
-    <button class="refresh-button" type="button" (click)="refreshOrders()" [disabled]="isLoading()">
-      <span aria-hidden="true">↻</span>
-      Actualizar
-    </button>
-  </section>
-
-  <section class="metrics" aria-label="Resumen de pedidos">
-    <div class="metric">
-      <span class="metric-label">Pedidos registrados</span>
-      <strong>{{ orders().length }}</strong>
-    </div>
-    <div class="metric">
-      <span class="metric-label">Pendientes</span>
-      <strong>{{ pendingCount() }}</strong>
-    </div>
-    <div class="metric">
-      <span class="metric-label">Unidades solicitadas</span>
-      <strong>{{ unitCount() }}</strong>
-    </div>
-  </section>
-
-  <div class="content-grid">
-    <section class="order-form-panel" aria-labelledby="new-order-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">NUEVO REGISTRO</p>
-          <h2 id="new-order-title">Crear pedido</h2>
-        </div>
-        <span class="step-number">01</span>
+  @if (activeView() === 'orders') {
+    <section class="page-heading" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">ÓRDENES / CONTROL</p>
+        <h1 id="page-title">Pedidos</h1>
+        <p class="page-description">Registra pedidos y revisa su estado en un solo lugar.</p>
       </div>
+      <button class="refresh-button" type="button" (click)="refreshOrders()" [disabled]="isLoading()">
+        <span aria-hidden="true">↻</span>
+        Actualizar
+      </button>
+    </section>
 
-      <form (ngSubmit)="submitOrder()" #orderForm="ngForm">
-        <label class="field-label" for="customer-id">ID del cliente</label>
-        <input
-          id="customer-id"
-          name="customerId"
-          type="text"
-          [(ngModel)]="customerId"
-          placeholder="Ej. CUST-1042"
-          autocomplete="off"
-          required
-        />
+    <section class="metrics" aria-label="Resumen de pedidos">
+      <div class="metric">
+        <span class="metric-label">Pedidos registrados</span>
+        <strong>{{ orders().length }}</strong>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Pendientes</span>
+        <strong>{{ pendingCount() }}</strong>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Unidades solicitadas</span>
+        <strong>{{ unitCount() }}</strong>
+      </div>
+    </section>
 
-        <div class="items-heading">
-          <span class="field-label">Productos</span>
-          <button class="text-button" type="button" (click)="addItem()">+ Agregar línea</button>
+    <div class="content-grid">
+      <section class="order-form-panel" aria-labelledby="new-order-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">NUEVO REGISTRO</p>
+            <h2 id="new-order-title">Crear pedido</h2>
+          </div>
+          <span class="step-number">01</span>
         </div>
 
-        <div class="item-list">
-          @for (item of items; track $index; let index = $index) {
-            <div class="item-row">
-              <label class="visually-hidden" [for]="'product-' + index">SKU de producto {{ index + 1 }}</label>
-              <input
-                [id]="'product-' + index"
-                [name]="'product-' + index"
-                type="text"
-                [(ngModel)]="item.productId"
-                placeholder="SKU de producto"
-                autocomplete="off"
-                required
-              />
-              <label class="visually-hidden" [for]="'quantity-' + index">Cantidad {{ index + 1 }}</label>
-              <input
-                class="quantity-input"
-                [id]="'quantity-' + index"
-                [name]="'quantity-' + index"
-                type="number"
-                [(ngModel)]="item.quantity"
-                min="1"
-                step="1"
-                required
-              />
-              @if (items.length > 1) {
-                <button
-                  class="remove-button"
-                  type="button"
-                  (click)="removeItem(index)"
-                  [attr.aria-label]="'Eliminar producto ' + (index + 1)"
-                  title="Eliminar línea"
-                >
-                  ×
-                </button>
-              }
-            </div>
+        <form (ngSubmit)="submitOrder()" #orderForm="ngForm">
+          <label class="field-label" for="customer-id">ID del cliente</label>
+          <input
+            id="customer-id"
+            name="customerId"
+            type="text"
+            [(ngModel)]="customerId"
+            placeholder="Ej. CUST-1042"
+            autocomplete="off"
+            required
+          />
+
+          <div class="items-heading">
+            <span class="field-label">Productos</span>
+            <button class="text-button" type="button" (click)="addItem()">+ Agregar línea</button>
+          </div>
+
+          <div class="item-list">
+            @for (item of items; track $index; let index = $index) {
+              <div class="item-row">
+                <label class="visually-hidden" [for]="'product-' + index">SKU de producto {{ index + 1 }}</label>
+                <input
+                  [id]="'product-' + index"
+                  [name]="'product-' + index"
+                  type="text"
+                  [(ngModel)]="item.productId"
+                  placeholder="SKU de producto"
+                  autocomplete="off"
+                  required
+                />
+                <label class="visually-hidden" [for]="'quantity-' + index">Cantidad {{ index + 1 }}</label>
+                <input
+                  class="quantity-input"
+                  [id]="'quantity-' + index"
+                  [name]="'quantity-' + index"
+                  type="number"
+                  [(ngModel)]="item.quantity"
+                  min="1"
+                  step="1"
+                  required
+                />
+                @if (items.length > 1) {
+                  <button
+                    class="remove-button"
+                    type="button"
+                    (click)="removeItem(index)"
+                    [attr.aria-label]="'Eliminar producto ' + (index + 1)"
+                    title="Eliminar línea"
+                  >
+                    ×
+                  </button>
+                }
+              </div>
+            }
+          </div>
+
+          @if (submitError()) {
+            <p class="form-message form-message--error" role="alert">{{ submitError() }}</p>
           }
+          @if (successMessage()) {
+            <p class="form-message form-message--success" role="status">{{ successMessage() }}</p>
+          }
+
+          <button class="submit-button" type="submit" [disabled]="orderForm.invalid || isSubmitting()">
+            {{ isSubmitting() ? 'Registrando…' : 'Registrar pedido' }}
+            <span aria-hidden="true">→</span>
+          </button>
+          <p class="form-note">El pedido se registrará con estado pendiente.</p>
+        </form>
+      </section>
+
+      <section class="orders-section" aria-labelledby="orders-title">
+        <div class="section-heading orders-heading">
+          <div>
+            <p class="eyebrow">ACTIVIDAD RECIENTE</p>
+            <h2 id="orders-title">Todos los pedidos</h2>
+          </div>
+          <span class="result-count">{{ orders().length }} registros</span>
         </div>
 
-        @if (submitError()) {
-          <p class="form-message form-message--error" role="alert">{{ submitError() }}</p>
-        }
-        @if (successMessage()) {
-          <p class="form-message form-message--success" role="status">{{ successMessage() }}</p>
-        }
-
-        <button class="submit-button" type="submit" [disabled]="orderForm.invalid || isSubmitting()">
-          {{ isSubmitting() ? 'Registrando…' : 'Registrar pedido' }}
-          <span aria-hidden="true">→</span>
-        </button>
-        <p class="form-note">El pedido se registrará con estado pendiente.</p>
-      </form>
-    </section>
-
-    <section class="orders-section" aria-labelledby="orders-title">
-      <div class="section-heading orders-heading">
-        <div>
-          <p class="eyebrow">ACTIVIDAD RECIENTE</p>
-          <h2 id="orders-title">Todos los pedidos</h2>
-        </div>
-        <span class="result-count">{{ orders().length }} registros</span>
-      </div>
-
-      @if (error()) {
-        <div class="notice notice--error" role="alert">
-          <strong>No se pudo cargar la actividad</strong>
-          <span>{{ error() }}</span>
-          <button class="text-button" type="button" (click)="refreshOrders()">Reintentar</button>
-        </div>
-      } @else if (isLoading() && orders().length === 0) {
-        <div class="empty-state" role="status">
-          <span class="loading-mark" aria-hidden="true"></span>
-          <p>Cargando pedidos…</p>
-        </div>
-      } @else if (orders().length === 0) {
-        <div class="empty-state">
-          <span class="empty-mark" aria-hidden="true">+</span>
-          <h3>Aún no hay pedidos</h3>
-          <p>Los nuevos registros aparecerán aquí.</p>
-        </div>
-      } @else {
-        <div class="orders-table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th scope="col">Pedido</th>
-                <th scope="col">Cliente</th>
-                <th scope="col">Productos</th>
-                <th scope="col">Fecha</th>
-                <th scope="col">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (order of orders(); track order.id) {
+        @if (error()) {
+          <div class="notice notice--error" role="alert">
+            <strong>No se pudo cargar la actividad</strong>
+            <span>{{ error() }}</span>
+            <button class="text-button" type="button" (click)="refreshOrders()">Reintentar</button>
+          </div>
+        } @else if (isLoading() && orders().length === 0) {
+          <div class="empty-state" role="status">
+            <span class="loading-mark" aria-hidden="true"></span>
+            <p>Cargando pedidos…</p>
+          </div>
+        } @else if (orders().length === 0) {
+          <div class="empty-state">
+            <span class="empty-mark" aria-hidden="true">+</span>
+            <h3>Aún no hay pedidos</h3>
+            <p>Los nuevos registros aparecerán aquí.</p>
+          </div>
+        } @else {
+          <div class="orders-table-wrap">
+            <table>
+              <thead>
                 <tr>
-                  <td class="order-id">{{ order.id.slice(0, 8).toUpperCase() }}</td>
-                  <td>{{ order.customerId }}</td>
-                  <td>
-                    <span class="product-summary">{{ order.items.length }} {{ order.items.length === 1 ? 'línea' : 'líneas' }}</span>
-                    <span class="unit-summary">{{ orderUnits(order) }} unidades</span>
-                  </td>
-                  <td class="date-cell">{{ order.createdAtUtc | date: 'medium' }}</td>
-                  <td>
-                    <span
-                      class="status-pill"
-                      [class.status-pill--confirmed]="order.status === 'Confirmed'"
-                      [class.status-pill--rejected]="order.status === 'Rejected'"
-                    >
-                      {{ order.status === 'Pending' ? 'Pendiente' : order.status === 'Confirmed' ? 'Confirmado' : 'Rechazado' }}
-                    </span>
-                  </td>
+                  <th scope="col">Pedido</th>
+                  <th scope="col">Cliente</th>
+                  <th scope="col">Productos</th>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Estado</th>
                 </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
+              </thead>
+              <tbody>
+                @for (order of orders(); track order.id) {
+                  <tr>
+                    <td class="order-id">{{ order.id.slice(0, 8).toUpperCase() }}</td>
+                    <td>{{ order.customerId }}</td>
+                    <td>
+                      <span class="product-summary">{{ order.items.length }} {{ order.items.length === 1 ? 'línea' : 'líneas' }}</span>
+                      <span class="unit-summary">{{ orderUnits(order) }} unidades</span>
+                    </td>
+                    <td class="date-cell">{{ order.createdAtUtc | date: 'medium' }}</td>
+                    <td>
+                      <span
+                        class="status-pill"
+                        [class.status-pill--confirmed]="order.status === 'Confirmed'"
+                        [class.status-pill--rejected]="order.status === 'Rejected'"
+                      >
+                        {{ order.status === 'Pending' ? 'Pendiente' : order.status === 'Confirmed' ? 'Confirmado' : 'Rechazado' }}
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+  } @else {
+    <section class="page-heading" aria-labelledby="inventory-title">
+      <div>
+        <p class="eyebrow">EXISTENCIAS / CONTROL</p>
+        <h1 id="inventory-title">Inventario</h1>
+        <p class="page-description">Consulta productos disponibles y ajusta sus existencias.</p>
+      </div>
+      <button class="refresh-button" type="button" (click)="refreshInventory()" [disabled]="isInventoryLoading()">
+        <span aria-hidden="true">↻</span>
+        Actualizar
+      </button>
     </section>
-  </div>
+
+    <section class="metrics" aria-label="Resumen de inventario">
+      <div class="metric">
+        <span class="metric-label">Productos registrados</span>
+        <strong>{{ inventory().length }}</strong>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Unidades disponibles</span>
+        <strong>{{ inventory().reduce((total, item) => total + item.quantityAvailable, 0) }}</strong>
+      </div>
+      <div class="metric">
+        <span class="metric-label">Sin existencias</span>
+        <strong>{{ inventory().filter(item => item.quantityAvailable === 0).length }}</strong>
+      </div>
+    </section>
+
+    <div class="content-grid inventory-grid">
+      <section class="order-form-panel" aria-labelledby="stock-form-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ACTUALIZACIÓN</p>
+            <h2 id="stock-form-title">Ajustar existencias</h2>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+
+        <form (ngSubmit)="saveInventory()" #inventoryForm="ngForm">
+          <label class="field-label" for="inventory-product-id">SKU del producto</label>
+          <input
+            id="inventory-product-id"
+            name="inventoryProductId"
+            type="text"
+            [(ngModel)]="inventoryProductId"
+            placeholder="Ej. SKU-001"
+            autocomplete="off"
+            maxlength="100"
+            required
+          />
+
+          <label class="field-label stock-quantity-label" for="inventory-quantity">Unidades disponibles</label>
+          <input
+            id="inventory-quantity"
+            name="inventoryQuantity"
+            type="number"
+            [(ngModel)]="inventoryQuantity"
+            min="0"
+            step="1"
+            required
+          />
+
+          @if (inventoryError()) {
+            <p class="form-message form-message--error" role="alert">{{ inventoryError() }}</p>
+          }
+          @if (inventorySuccessMessage()) {
+            <p class="form-message form-message--success" role="status">{{ inventorySuccessMessage() }}</p>
+          }
+
+          <button class="submit-button" type="submit" [disabled]="inventoryForm.invalid || isSavingInventory()">
+            {{ isSavingInventory() ? 'Guardando…' : 'Guardar existencias' }}
+            <span aria-hidden="true">→</span>
+          </button>
+          <p class="form-note">Guardar un SKU existente reemplaza su cantidad actual.</p>
+        </form>
+      </section>
+
+      <section class="orders-section" aria-labelledby="inventory-list-title">
+        <div class="section-heading orders-heading">
+          <div>
+            <p class="eyebrow">CATÁLOGO DE STOCK</p>
+            <h2 id="inventory-list-title">Productos</h2>
+          </div>
+          <span class="result-count">{{ inventory().length }} productos</span>
+        </div>
+
+        @if (inventoryError() && inventory().length === 0) {
+          <div class="notice notice--error" role="alert">
+            <strong>No se pudo cargar el inventario</strong>
+            <span>{{ inventoryError() }}</span>
+            <button class="text-button" type="button" (click)="refreshInventory()">Reintentar</button>
+          </div>
+        } @else if (isInventoryLoading() && inventory().length === 0) {
+          <div class="empty-state" role="status">
+            <span class="loading-mark" aria-hidden="true"></span>
+            <p>Cargando inventario…</p>
+          </div>
+        } @else if (inventory().length === 0) {
+          <div class="empty-state">
+            <span class="empty-mark" aria-hidden="true">+</span>
+            <h3>Aún no hay productos</h3>
+            <p>Registra un SKU y sus existencias para comenzar.</p>
+          </div>
+        } @else {
+          <div class="orders-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Producto</th>
+                  <th scope="col">Disponibles</th>
+                  <th scope="col">Estado</th>
+                  <th scope="col">Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (item of inventory(); track item.productId) {
+                  <tr>
+                    <td class="order-id">{{ item.productId }}</td>
+                    <td>{{ item.quantityAvailable }}</td>
+                    <td>
+                      <span
+                        class="status-pill"
+                        [class.status-pill--available]="item.quantityAvailable > 0"
+                        [class.status-pill--rejected]="item.quantityAvailable === 0"
+                      >
+                        {{ item.quantityAvailable === 0 ? 'Agotado' : 'Disponible' }}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="text-button" type="button" (click)="editInventoryItem(item)">Ajustar</button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    </div>
+  }
 
   <footer class="workspace-footer">
     <span>OrderFlow</span>

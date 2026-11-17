@@ -21,7 +21,7 @@ Orders API usa PostgreSQL mediante EF Core. Al iniciar, aplica las migraciones p
 
 Inventory Worker procesa los pedidos `Pending`. Si todos sus productos tienen existencias suficientes, las descuenta en una transacción y cambia el pedido a `Confirmed`; si falta un producto o cantidad, lo cambia a `Rejected` sin descontar ninguna línea. Los pedidos se procesan de forma segura incluso si se ejecutan varias instancias del worker.
 
-Para consultar existencias o fijar la cantidad disponible de un producto:
+En Angular, abre la pestaña **Inventario** para consultar productos, registrar un SKU o ajustar sus existencias. La API también ofrece estos endpoints:
 
 ```powershell
 Invoke-RestMethod http://localhost:8080/api/inventory

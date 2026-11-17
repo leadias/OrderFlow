@@ -35,6 +35,40 @@
   letter-spacing: 0;
 }
 
+.primary-nav {
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  gap: 5px;
+}
+
+.primary-nav button {
+  position: relative;
+  padding: 0 15px;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primary-nav button:hover,
+.primary-nav .primary-nav__item--active {
+  color: var(--green);
+}
+
+.primary-nav .primary-nav__item--active::after {
+  position: absolute;
+  right: 12px;
+  bottom: -1px;
+  left: 12px;
+  height: 2px;
+  background: var(--green);
+  content: '';
+}
+
 .connection {
   display: flex;
   align-items: center;
@@ -408,9 +442,18 @@ td {
   background: #e5f1e9;
 }
 
+.status-pill--available {
+  color: #17684f;
+  background: #e5f1e9;
+}
+
 .status-pill--rejected {
   color: #a23e2a;
   background: #f8e9e3;
+}
+
+.stock-quantity-label {
+  margin-top: 20px;
 }
 
 .empty-state {
@@ -520,11 +563,37 @@ td {
 @media (max-width: 480px) {
   .topbar {
     height: 60px;
-    padding-inline: 18px;
+    padding-inline: 12px;
+    gap: 5px;
+  }
+
+  .brand {
+    gap: 7px;
+    font-size: 13px;
+  }
+
+  .brand-mark {
+    width: 27px;
+    height: 27px;
+  }
+
+  .primary-nav {
+    gap: 0;
+  }
+
+  .primary-nav button {
+    padding-inline: 8px;
+    font-size: 11px;
   }
 
   .connection {
-    font-size: 10px;
+    gap: 6px;
+    font-size: 0;
+  }
+
+  .connection-dot {
+    width: 9px;
+    height: 9px;
   }
 
   .workspace {

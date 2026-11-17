@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
-import { Order, OrdersApi } from './orders-api';
+import { InventoryItem, Order, OrdersApi } from './orders-api';
 
 interface OrderItemDraft {
   productId: string;
@@ -19,16 +19,31 @@ export class App implements OnInit {
   private readonly ordersApi = inject(OrdersApi);
 
   protected readonly orders = signal<Order[]>([]);
+  protected readonly inventory = signal<InventoryItem[]>([]);
+  protected readonly activeView = signal<'orders' | 'inventory'>('orders');
   protected readonly isLoading = signal(true);
+  protected readonly isInventoryLoading = signal(false);
   protected readonly isSubmitting = signal(false);
+  protected readonly isSavingInventory = signal(false);
   protected readonly error = signal('');
+  protected readonly inventoryError = signal('');
   protected readonly submitError = signal('');
   protected readonly successMessage = signal('');
+  protected readonly inventorySuccessMessage = signal('');
   protected customerId = '';
+  protected inventoryProductId = '';
+  protected inventoryQuantity = 0;
   protected items: OrderItemDraft[] = [{ productId: '', quantity: 1 }];
 
   ngOnInit(): void {
     this.refreshOrders();
+  }
+
+  protected showView(view: 'orders' | 'inventory'): void {
+    this.activeView.set(view);
+    if (view === 'inventory') {
+      this.refreshInventory();
+    }
   }
 
   protected pendingCount(): number {
@@ -61,6 +76,49 @@ export class App implements OnInit {
       .subscribe({
         next: (orders) => this.orders.set(orders),
         error: () => this.error.set('Comprueba que el servicio de pedidos esté iniciado e inténtalo de nuevo.'),
+      });
+  }
+
+  protected refreshInventory(): void {
+    this.isInventoryLoading.set(true);
+    this.inventoryError.set('');
+    this.ordersApi.getInventory()
+      .pipe(finalize(() => this.isInventoryLoading.set(false)))
+      .subscribe({
+        next: (inventory) => this.inventory.set(inventory),
+        error: () => this.inventoryError.set('No se pudo cargar el inventario. Comprueba la conexión e inténtalo de nuevo.'),
+      });
+  }
+
+  protected editInventoryItem(item: InventoryItem): void {
+    this.inventoryProductId = item.productId;
+    this.inventoryQuantity = item.quantityAvailable;
+    this.inventorySuccessMessage.set('');
+  }
+
+  protected saveInventory(): void {
+    const productId = this.inventoryProductId.trim();
+    if (!productId || !Number.isInteger(this.inventoryQuantity) || this.inventoryQuantity < 0) {
+      this.inventoryError.set('Indica un SKU y una cantidad entera igual o mayor que cero.');
+      return;
+    }
+
+    this.isSavingInventory.set(true);
+    this.inventoryError.set('');
+    this.inventorySuccessMessage.set('');
+    this.ordersApi.setInventory(productId, this.inventoryQuantity)
+      .pipe(finalize(() => this.isSavingInventory.set(false)))
+      .subscribe({
+        next: (updatedItem) => {
+          this.inventory.update((items) => [
+            ...items.filter((item) => item.productId !== updatedItem.productId),
+            updatedItem,
+          ].sort((first, second) => first.productId.localeCompare(second.productId)));
+          this.inventoryProductId = '';
+          this.inventoryQuantity = 0;
+          this.inventorySuccessMessage.set(`Existencias de ${updatedItem.productId} actualizadas.`);
+        },
+        error: () => this.inventoryError.set('No se pudieron guardar las existencias. Revisa los datos e inténtalo de nuevo.'),
       });
   }
 
