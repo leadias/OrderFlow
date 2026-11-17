@@ -25,6 +25,10 @@ export interface InventoryItem {
   quantityAvailable: number;
 }
 
+export interface AuthenticatedUser {
+  email: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class OrdersApi {
   private readonly http = inject(HttpClient);
@@ -47,5 +51,17 @@ export class OrdersApi {
       `/api/inventory/${encodeURIComponent(productId)}`,
       { quantityAvailable },
     );
+  }
+
+  getCurrentUser(): Observable<AuthenticatedUser> {
+    return this.http.get<AuthenticatedUser>('/api/auth/me');
+  }
+
+  login(email: string, password: string): Observable<void> {
+    return this.http.post<void>('/api/auth/login', { email, password });
+  }
+
+  logout(): Observable<void> {
+    return this.http.post<void>('/api/auth/logout', {});
   }
 }

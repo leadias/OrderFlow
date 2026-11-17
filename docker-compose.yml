@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: orderflow
       POSTGRES_USER: orderflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-orderflow_dev_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,9 +21,11 @@ services:
       dockerfile: OrderFlow.Api/Dockerfile
     environment:
       ASPNETCORE_HTTP_PORTS: 8080
-      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:-orderflow_dev_password}
+      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      AdminAccount__Email: ${ORDERFLOW_ADMIN_EMAIL:?Set ORDERFLOW_ADMIN_EMAIL in .env}
+      AdminAccount__Password: ${ORDERFLOW_ADMIN_PASSWORD:?Set ORDERFLOW_ADMIN_PASSWORD in .env}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -33,7 +35,7 @@ services:
       context: ./backend
       dockerfile: OrderFlow.InventoryWorker/Dockerfile
     environment:
-      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:-orderflow_dev_password}
+      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,7 +44,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "4200:80"
+      - "127.0.0.1:4200:80"
     depends_on:
       - orders-api
 

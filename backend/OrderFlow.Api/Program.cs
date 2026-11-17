@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Api.Data;
 using OrderFlow.Api.Models;
@@ -10,6 +12,43 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("OrdersDb")));
+builder.Services.AddIdentityCore<IdentityUser>(options =>
+    {
+        options.User.RequireUniqueEmail = true;
+        options.Password.RequiredLength = 12;
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Lockout.MaxFailedAccessAttempts = 5;
+        options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<OrderDbContext>()
+    .AddSignInManager();
+builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+    .AddIdentityCookies();
+builder.Services.AddAuthorization(options =>
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin")));
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Cookie.Name = "OrderFlow.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Strict;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.ExpireTimeSpan = TimeSpan.FromHours(8);
+    options.SlidingExpiration = true;
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
 
 var app = builder.Build();
 
@@ -24,6 +63,8 @@ await using (var scope = app.Services.CreateAsyncScope())
     {
         await dbContext.Database.EnsureCreatedAsync();
     }
+
+    await SeedAdministratorAsync(scope.ServiceProvider, app.Configuration);
 }
 
 if (app.Environment.IsDevelopment())
@@ -32,13 +73,43 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapGet("/health", async (OrderDbContext dbContext, CancellationToken cancellationToken) =>
     await dbContext.Database.CanConnectAsync(cancellationToken)
         ? Results.Ok(new { status = "healthy" })
         : Results.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: "Database unavailable"));
 
-var orders = app.MapGroup("/api/orders");
+var auth = app.MapGroup("/api/auth");
+
+auth.MapPost("/login", async (LoginRequest request, SignInManager<IdentityUser> signInManager) =>
+{
+    var result = await signInManager.PasswordSignInAsync(
+        request.Email,
+        request.Password,
+        isPersistent: true,
+        lockoutOnFailure: true);
+
+    return result.Succeeded ? Results.NoContent() : Results.Unauthorized();
+})
+.AllowAnonymous()
+.WithName("Login");
+
+auth.MapGet("/me", (HttpContext context) =>
+    Results.Ok(new { email = context.User.Identity?.Name }))
+    .RequireAuthorization()
+    .WithName("GetCurrentUser");
+
+auth.MapPost("/logout", async (SignInManager<IdentityUser> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.NoContent();
+})
+.RequireAuthorization()
+.WithName("Logout");
+
+var orders = app.MapGroup("/api/orders").RequireAuthorization("AdminOnly");
 
 orders.MapPost("", async (CreateOrderRequest request, OrderDbContext dbContext, CancellationToken cancellationToken) =>
 {
@@ -93,7 +164,7 @@ orders.MapGet("/{id:guid}", async (Guid id, OrderDbContext dbContext, Cancellati
 })
 .WithName("GetOrder");
 
-var inventory = app.MapGroup("/api/inventory");
+var inventory = app.MapGroup("/api/inventory").RequireAuthorization("AdminOnly");
 
 inventory.MapGet("", async (OrderDbContext dbContext, CancellationToken cancellationToken) =>
 {
@@ -145,6 +216,48 @@ inventory.MapPut("/{productId}", async (
 .WithName("SetInventory");
 
 app.Run();
+
+static async Task SeedAdministratorAsync(IServiceProvider services, IConfiguration configuration)
+{
+    var email = configuration["AdminAccount:Email"];
+    var password = configuration["AdminAccount:Password"];
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+    {
+        throw new InvalidOperationException(
+            "AdminAccount:Email and AdminAccount:Password must be configured outside source control.");
+    }
+
+    var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
+    var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+    if (!await roleManager.RoleExistsAsync("Admin"))
+    {
+        var roleResult = await roleManager.CreateAsync(new IdentityRole("Admin"));
+        if (!roleResult.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", roleResult.Errors.Select(error => error.Description)));
+        }
+    }
+
+    var administrator = await userManager.FindByEmailAsync(email);
+    if (administrator is null)
+    {
+        administrator = new IdentityUser { UserName = email, Email = email, EmailConfirmed = true };
+        var userResult = await userManager.CreateAsync(administrator, password);
+        if (!userResult.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", userResult.Errors.Select(error => error.Description)));
+        }
+    }
+
+    if (!await userManager.IsInRoleAsync(administrator, "Admin"))
+    {
+        var roleResult = await userManager.AddToRoleAsync(administrator, "Admin");
+        if (!roleResult.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", roleResult.Errors.Select(error => error.Description)));
+        }
+    }
+}
 
 static Dictionary<string, string[]> Validate(CreateOrderRequest request)
 {

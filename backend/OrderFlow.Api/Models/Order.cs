@@ -35,6 +35,8 @@ public sealed record CreateOrderRequest(string? CustomerId, List<CreateOrderItem
 
 public sealed record CreateOrderItemRequest(string? ProductId, int Quantity);
 
+public sealed record LoginRequest(string Email, string Password);
+
 public sealed record SetInventoryRequest(int QuantityAvailable);
 
 public sealed record InventoryItemResponse(string ProductId, int QuantityAvailable);

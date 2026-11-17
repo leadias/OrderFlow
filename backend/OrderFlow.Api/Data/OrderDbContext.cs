@@ -1,15 +1,20 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OrderFlow.Api.Models;
 
 namespace OrderFlow.Api.Data;
 
-public sealed class OrderDbContext(DbContextOptions<OrderDbContext> options) : DbContext(options)
+public sealed class OrderDbContext(DbContextOptions<OrderDbContext> options)
+    : IdentityDbContext<IdentityUser>(options)
 {
     public DbSet<OrderEntity> Orders => Set<OrderEntity>();
     public DbSet<InventoryItemEntity> InventoryItems => Set<InventoryItemEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         modelBuilder.Entity<OrderEntity>(entity =>
         {
             entity.ToTable("orders");

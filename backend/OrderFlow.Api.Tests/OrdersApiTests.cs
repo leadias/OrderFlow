@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OrderFlow.Api.Data;
@@ -16,7 +17,7 @@ public sealed class OrdersApiTests
     public async Task CreateOrder_can_be_read_by_id_and_listed()
     {
         using var factory = CreateFactory();
-        using var client = factory.CreateClient();
+        using var client = await CreateAuthenticatedClientAsync(factory);
         var request = new
         {
             customerId = "CUST-TEST-01",
@@ -45,7 +46,7 @@ public sealed class OrdersApiTests
     public async Task CreateOrder_rejects_missing_customer_and_nonpositive_quantity()
     {
         using var factory = CreateFactory();
-        using var client = factory.CreateClient();
+        using var client = await CreateAuthenticatedClientAsync(factory);
         var request = new
         {
             customerId = " ",
@@ -61,7 +62,7 @@ public sealed class OrdersApiTests
     public async Task Inventory_can_be_set_and_listed()
     {
         using var factory = CreateFactory();
-        using var client = factory.CreateClient();
+        using var client = await CreateAuthenticatedClientAsync(factory);
 
         var response = await client.PutAsJsonAsync(
             "/api/inventory/SKU-01",
@@ -79,7 +80,7 @@ public sealed class OrdersApiTests
     public async Task Inventory_rejects_negative_quantity()
     {
         using var factory = CreateFactory();
-        using var client = factory.CreateClient();
+        using var client = await CreateAuthenticatedClientAsync(factory);
 
         var response = await client.PutAsJsonAsync(
             "/api/inventory/SKU-01",
@@ -92,13 +93,83 @@ public sealed class OrdersApiTests
     {
         var databaseName = $"orders-tests-{Guid.NewGuid()}";
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["AdminAccount:Email"] = "admin@tests.local",
+                    ["AdminAccount:Password"] = "Test-OrderFlow-2026!"
+                }));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IDbContextOptionsConfiguration<OrderDbContext>>();
                 services.RemoveAll<DbContextOptions<OrderDbContext>>();
                 services.AddDbContext<OrderDbContext>(options =>
                     options.UseInMemoryDatabase(databaseName));
-            }));
+            });
+        });
+    }
+
+    private static async Task<HttpClient> CreateAuthenticatedClientAsync(WebApplicationFactory<Program> factory)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "admin@tests.local",
+            password = "Test-OrderFlow-2026!"
+        });
+        Assert.Equal(HttpStatusCode.NoContent, loginResponse.StatusCode);
+        return client;
+    }
+
+    [Fact]
+    public async Task Business_routes_require_login_and_logout_clears_the_session()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/orders")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/inventory")).StatusCode);
+
+        var loginResponse = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "admin@tests.local",
+            password = "Test-OrderFlow-2026!"
+        });
+        Assert.Equal(HttpStatusCode.NoContent, loginResponse.StatusCode);
+        var authCookie = Assert.Single(loginResponse.Headers.GetValues("Set-Cookie"));
+        Assert.Contains("httponly", authCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("secure", authCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("samesite=strict", authCookie, StringComparison.OrdinalIgnoreCase);
+        var currentUser = await client.GetFromJsonAsync<CurrentUserResponse>("/api/auth/me");
+        Assert.Equal("admin@tests.local", currentUser?.Email);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await client.PostAsync("/api/auth/logout", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/orders")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Login_rejects_an_incorrect_password()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.PostAsJsonAsync("/api/auth/login", new
+        {
+            email = "admin@tests.local",
+            password = "incorrect-password"
+        });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private sealed record OrderResponse(
@@ -110,4 +181,6 @@ public sealed class OrdersApiTests
     private sealed record OrderItemResponse(string ProductId, int Quantity);
 
     private sealed record InventoryResponse(string ProductId, int QuantityAvailable);
+
+    private sealed record CurrentUserResponse(string Email);
 }

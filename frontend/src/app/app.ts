@@ -1,7 +1,8 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { DestroyRef, Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
+import { EMPTY, catchError, exhaustMap, filter, finalize, switchMap, timer } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { InventoryItem, Order, OrdersApi } from './orders-api';
 
 interface OrderItemDraft {
@@ -17,32 +18,102 @@ interface OrderItemDraft {
 })
 export class App implements OnInit {
   private readonly ordersApi = inject(OrdersApi);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly orders = signal<Order[]>([]);
   protected readonly inventory = signal<InventoryItem[]>([]);
   protected readonly activeView = signal<'orders' | 'inventory'>('orders');
+  protected readonly isCheckingSession = signal(true);
+  protected readonly isAuthenticated = signal(false);
   protected readonly isLoading = signal(true);
   protected readonly isInventoryLoading = signal(false);
   protected readonly isSubmitting = signal(false);
   protected readonly isSavingInventory = signal(false);
+  protected readonly isSigningIn = signal(false);
   protected readonly error = signal('');
+  protected readonly authError = signal('');
   protected readonly inventoryError = signal('');
   protected readonly submitError = signal('');
   protected readonly successMessage = signal('');
   protected readonly inventorySuccessMessage = signal('');
   protected customerId = '';
+  protected loginEmail = '';
+  protected loginPassword = '';
+  protected currentUserEmail = '';
   protected inventoryProductId = '';
   protected inventoryQuantity = 0;
   protected items: OrderItemDraft[] = [{ productId: '', quantity: 1 }];
 
   ngOnInit(): void {
-    this.refreshOrders();
+    this.checkSession();
+    timer(3000, 3000)
+      .pipe(
+        filter(() => this.isAuthenticated() && this.activeView() === 'orders'),
+        exhaustMap(() => this.ordersApi.getOrders().pipe(
+          catchError(() => {
+            this.error.set('No se pudieron actualizar los pedidos. Comprueba la conexión.');
+            return EMPTY;
+          }),
+        )),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((orders) => {
+        this.orders.set(orders);
+        this.error.set('');
+      });
+  }
+
+  protected login(): void {
+    this.isSigningIn.set(true);
+    this.authError.set('');
+    this.ordersApi.login(this.loginEmail.trim(), this.loginPassword)
+      .pipe(
+        switchMap(() => this.ordersApi.getCurrentUser()),
+        finalize(() => this.isSigningIn.set(false)),
+      )
+      .subscribe({
+        next: (user) => {
+          this.currentUserEmail = user.email;
+          this.isAuthenticated.set(true);
+          this.loginPassword = '';
+          this.refreshOrders();
+        },
+        error: () => this.authError.set('Correo o contraseña incorrectos.'),
+      });
+  }
+
+  protected logout(): void {
+    this.ordersApi.logout().subscribe({
+      next: () => {
+        this.isAuthenticated.set(false);
+        this.currentUserEmail = '';
+        this.orders.set([]);
+        this.inventory.set([]);
+        this.authError.set('');
+      },
+      error: () => this.authError.set('No se pudo cerrar la sesión. Inténtalo de nuevo.'),
+    });
+  }
+
+  private checkSession(): void {
+    this.ordersApi.getCurrentUser()
+      .pipe(finalize(() => this.isCheckingSession.set(false)))
+      .subscribe({
+        next: (user) => {
+          this.currentUserEmail = user.email;
+          this.isAuthenticated.set(true);
+          this.refreshOrders();
+        },
+        error: () => this.isAuthenticated.set(false),
+      });
   }
 
   protected showView(view: 'orders' | 'inventory'): void {
     this.activeView.set(view);
     if (view === 'inventory') {
       this.refreshInventory();
+    } else {
+      this.refreshOrders();
     }
   }
 

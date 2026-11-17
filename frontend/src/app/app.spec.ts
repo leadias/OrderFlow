@@ -22,23 +22,28 @@ describe('App', () => {
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    httpTesting.expectOne('/api/orders').flush([]);
+    httpTesting.expectOne('/api/auth/me').flush({}, { status: 401, statusText: 'Unauthorized' });
     const app = fixture.componentInstance;
     expect(app).toBeTruthy();
   });
 
-  it('should render the orders screen', () => {
+  it('should show login when no session exists', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
-    httpTesting.expectOne('/api/orders').flush([]);
+    httpTesting.expectOne('/api/auth/me').flush({}, { status: 401, statusText: 'Unauthorized' });
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Pedidos');
+    expect(compiled.querySelector('h1')?.textContent).toContain('Iniciar sesión');
+    expect(compiled.querySelector('nav')).toBeNull();
   });
 
   it('should show inventory and load an existing product for adjustment', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
+    httpTesting.expectOne('/api/auth/me').flush({ email: 'admin@orderflow.local' });
+    fixture.detectChanges();
     httpTesting.expectOne('/api/orders').flush([]);
+    fixture.detectChanges();
 
     const inventoryTab = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll('nav button'),
@@ -63,5 +68,15 @@ describe('App', () => {
     expect(request.request.method).toBe('PUT');
     expect(request.request.body).toEqual({ quantityAvailable: 8 });
     request.flush({ productId: 'SKU-001', quantityAvailable: 8 });
+  });
+
+  it('should send login credentials to the API', () => {
+    const api = TestBed.inject(OrdersApi);
+    api.login('admin@orderflow.local', 'local-password').subscribe();
+
+    const request = httpTesting.expectOne('/api/auth/login');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ email: 'admin@orderflow.local', password: 'local-password' });
+    request.flush(null);
   });
 });
