@@ -6,6 +6,7 @@ namespace OrderFlow.Api.Data;
 public sealed class OrderDbContext(DbContextOptions<OrderDbContext> options) : DbContext(options)
 {
     public DbSet<OrderEntity> Orders => Set<OrderEntity>();
+    public DbSet<InventoryItemEntity> InventoryItems => Set<InventoryItemEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,15 @@ public sealed class OrderDbContext(DbContextOptions<OrderDbContext> options) : D
             entity.HasKey(item => new { item.OrderId, item.LineNumber });
             entity.Property(item => item.ProductId).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Quantity).IsRequired();
+        });
+
+        modelBuilder.Entity<InventoryItemEntity>(entity =>
+        {
+            entity.ToTable("inventory_items", table =>
+                table.HasCheckConstraint("CK_inventory_items_quantity_available", "\"QuantityAvailable\" >= 0"));
+            entity.HasKey(item => item.ProductId);
+            entity.Property(item => item.ProductId).HasMaxLength(100);
+            entity.Property(item => item.QuantityAvailable).IsRequired();
         });
     }
 }

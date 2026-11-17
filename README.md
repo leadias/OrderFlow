@@ -19,6 +19,17 @@ Monorepo para una aplicación de gestión de pedidos. Cada servicio conserva su 
 
 Orders API usa PostgreSQL mediante EF Core. Al iniciar, aplica las migraciones pendientes. Compose conserva los datos en el volumen `postgres_data`; bajar y volver a levantar los servicios no elimina los pedidos. Para borrar también la base de datos de desarrollo, ejecuta `docker compose down -v`.
 
+Inventory Worker procesa los pedidos `Pending`. Si todos sus productos tienen existencias suficientes, las descuenta en una transacción y cambia el pedido a `Confirmed`; si falta un producto o cantidad, lo cambia a `Rejected` sin descontar ninguna línea. Los pedidos se procesan de forma segura incluso si se ejecutan varias instancias del worker.
+
+Para consultar existencias o fijar la cantidad disponible de un producto:
+
+```powershell
+Invoke-RestMethod http://localhost:8080/api/inventory
+Invoke-RestMethod -Method Put -Uri http://localhost:8080/api/inventory/SKU-001 -ContentType 'application/json' -Body '{"quantityAvailable":10}'
+```
+
+El endpoint de inventario no tiene autenticación y está destinado al entorno local de desarrollo; debe protegerse antes de exponerlo en producción.
+
 ## Ejecutar localmente
 
 Desde la raíz del repositorio:
@@ -56,7 +67,7 @@ Para agregar una migración después de cambiar el modelo:
 dotnet ef migrations add NombreDeLaMigracion --project backend/OrderFlow.Api --startup-project backend/OrderFlow.Api
 ```
 
-Las migraciones se aplican al arrancar Orders API.
+Las migraciones se aplican al arrancar Orders API. Las pruebas HTTP del API usan una base EF Core en memoria; las pruebas del Worker arrancan PostgreSQL temporal con Testcontainers y requieren Docker.
 
 ## Ejecutar con Docker Compose
 

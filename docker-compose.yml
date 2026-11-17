@@ -32,6 +32,11 @@ services:
     build:
       context: ./backend
       dockerfile: OrderFlow.InventoryWorker/Dockerfile
+    environment:
+      ConnectionStrings__OrdersDb: Host=postgres;Port=5432;Database=orderflow;Username=orderflow;Password=${POSTGRES_PASSWORD:-orderflow_dev_password}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   frontend:
     build:

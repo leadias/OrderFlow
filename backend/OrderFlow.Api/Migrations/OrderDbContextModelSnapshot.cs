@@ -22,6 +22,23 @@ namespace OrderFlow.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OrderFlow.Api.Models.InventoryItemEntity", b =>
+                {
+                    b.Property<string>("ProductId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("QuantityAvailable")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ProductId");
+
+                    b.ToTable("inventory_items", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_inventory_items_quantity_available", "\"QuantityAvailable\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("OrderFlow.Api.Models.OrderEntity", b =>
                 {
                     b.Property<Guid>("Id")

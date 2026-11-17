@@ -11,7 +11,7 @@ export interface Order {
   id: string;
   customerId: string;
   items: OrderItem[];
-  status: 'Pending';
+  status: 'Pending' | 'Confirmed' | 'Rejected';
   createdAtUtc: string;
 }
 

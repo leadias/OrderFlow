@@ -166,7 +166,15 @@
                     <span class="unit-summary">{{ orderUnits(order) }} unidades</span>
                   </td>
                   <td class="date-cell">{{ order.createdAtUtc | date: 'medium' }}</td>
-                  <td><span class="status-pill">{{ order.status === 'Pending' ? 'Pendiente' : order.status }}</span></td>
+                  <td>
+                    <span
+                      class="status-pill"
+                      [class.status-pill--confirmed]="order.status === 'Confirmed'"
+                      [class.status-pill--rejected]="order.status === 'Rejected'"
+                    >
+                      {{ order.status === 'Pending' ? 'Pendiente' : order.status === 'Confirmed' ? 'Confirmado' : 'Rechazado' }}
+                    </span>
+                  </td>
                 </tr>
               }
             </tbody>

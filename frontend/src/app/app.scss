@@ -403,6 +403,16 @@ td {
   font-weight: 650;
 }
 
+.status-pill--confirmed {
+  color: #17684f;
+  background: #e5f1e9;
+}
+
+.status-pill--rejected {
+  color: #a23e2a;
+  background: #f8e9e3;
+}
+
 .empty-state {
   min-height: 230px;
   padding: 30px;

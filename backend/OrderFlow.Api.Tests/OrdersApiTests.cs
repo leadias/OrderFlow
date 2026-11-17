@@ -57,6 +57,37 @@ public sealed class OrdersApiTests
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public async Task Inventory_can_be_set_and_listed()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            "/api/inventory/SKU-01",
+            new { quantityAvailable = 12 });
+        var item = await response.Content.ReadFromJsonAsync<InventoryResponse>();
+        var inventory = await client.GetFromJsonAsync<InventoryResponse[]>("/api/inventory");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("SKU-01", item?.ProductId);
+        Assert.Equal(12, item?.QuantityAvailable);
+        Assert.Contains(inventory!, entry => entry.ProductId == "SKU-01" && entry.QuantityAvailable == 12);
+    }
+
+    [Fact]
+    public async Task Inventory_rejects_negative_quantity()
+    {
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.PutAsJsonAsync(
+            "/api/inventory/SKU-01",
+            new { quantityAvailable = -1 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> CreateFactory()
     {
         var databaseName = $"orders-tests-{Guid.NewGuid()}";
@@ -77,4 +108,6 @@ public sealed class OrdersApiTests
         string Status);
 
     private sealed record OrderItemResponse(string ProductId, int Quantity);
+
+    private sealed record InventoryResponse(string ProductId, int QuantityAvailable);
 }

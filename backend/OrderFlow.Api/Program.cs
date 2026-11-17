@@ -93,6 +93,57 @@ orders.MapGet("/{id:guid}", async (Guid id, OrderDbContext dbContext, Cancellati
 })
 .WithName("GetOrder");
 
+var inventory = app.MapGroup("/api/inventory");
+
+inventory.MapGet("", async (OrderDbContext dbContext, CancellationToken cancellationToken) =>
+{
+    var items = await dbContext.InventoryItems
+        .AsNoTracking()
+        .OrderBy(item => item.ProductId)
+        .Select(item => new InventoryItemResponse(item.ProductId, item.QuantityAvailable))
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(items);
+})
+.WithName("GetInventory");
+
+inventory.MapPut("/{productId}", async (
+    string productId,
+    SetInventoryRequest request,
+    OrderDbContext dbContext,
+    CancellationToken cancellationToken) =>
+{
+    var normalizedProductId = productId.Trim();
+    if (string.IsNullOrWhiteSpace(normalizedProductId) || normalizedProductId.Length > 100)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["productId"] = ["ProductId must contain between 1 and 100 characters."]
+        });
+    }
+
+    if (request.QuantityAvailable < 0)
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["quantityAvailable"] = ["QuantityAvailable cannot be negative."]
+        });
+    }
+
+    var item = await dbContext.InventoryItems.FindAsync([normalizedProductId], cancellationToken);
+    if (item is null)
+    {
+        item = new InventoryItemEntity { ProductId = normalizedProductId };
+        dbContext.InventoryItems.Add(item);
+    }
+
+    item.QuantityAvailable = request.QuantityAvailable;
+    await dbContext.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(new InventoryItemResponse(item.ProductId, item.QuantityAvailable));
+})
+.WithName("SetInventory");
+
 app.Run();
 
 static Dictionary<string, string[]> Validate(CreateOrderRequest request)

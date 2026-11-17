@@ -2,7 +2,9 @@ namespace OrderFlow.Api.Models;
 
 public enum OrderStatus
 {
-    Pending
+    Pending,
+    Confirmed,
+    Rejected
 }
 
 public sealed class OrderEntity
@@ -23,9 +25,19 @@ public sealed class OrderItemEntity
     public OrderEntity Order { get; set; } = null!;
 }
 
+public sealed class InventoryItemEntity
+{
+    public required string ProductId { get; set; }
+    public int QuantityAvailable { get; set; }
+}
+
 public sealed record CreateOrderRequest(string? CustomerId, List<CreateOrderItemRequest>? Items);
 
 public sealed record CreateOrderItemRequest(string? ProductId, int Quantity);
+
+public sealed record SetInventoryRequest(int QuantityAvailable);
+
+public sealed record InventoryItemResponse(string ProductId, int QuantityAvailable);
 
 public sealed record OrderItemResponse(string ProductId, int Quantity);
 
